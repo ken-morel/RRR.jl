@@ -1,0 +1,10 @@
+name = "RRR"
+uuid = "e0f0c60a-5331-4a95-b4d7-45c62bda25d4"
+version = "0.1.0"
+authors = ["ken-morel <engonken8@gmail.com>"]
+
+[deps]
+Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
+
+[compat]
+Sockets = "1.11.0"
