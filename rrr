@@ -10,7 +10,7 @@ function __rrr_help
     echo ""
     echo "Management Commands:"
     echo "  start                            Start the RRR server in the background."
-    echo "  quit                             Shut down the RRR server and all sessions."
+    echo "  stop                             Shut down the RRR server and all sessions."
     echo "  kill <name>                      Terminate a specific REPL session."
     echo ""
     echo "Session Commands:"
@@ -122,9 +122,9 @@ function rrr
         set -l name $argv[2]
         set -l args ""
 
-        set -l dash_index (contains -i -- "--" $argv)
-        if test $status -eq 0
-            set args (string join " " -- $argv[(math $dash_index + 1)..end])
+        if test (count $argv) -gt 2
+            # Take all arguments after the template and name
+            set args (string join " " -- $argv[3..-1])
         end
 
         begin
@@ -136,8 +136,8 @@ function rrr
         return $status
     end
 
-    # --- QUIT the server ---
-    if test "$command" = quit
+    # --- STOP the server ---
+    if test "$command" = stop
         echo quit | nc -U "$SOCKET_PATH"
         return $status
     end

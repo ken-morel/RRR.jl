@@ -1,11 +1,14 @@
 # RRR.jl: Remote REPL Runner
 
 RRR.jl (Remote REPL Runner) is a powerful Julia-based server and Fish shell
-client designed to streamline your interactive programming workflow.
+client designed to improve interactive programming workflow.
  It allows you to manage multiple REPL sessions (Julia, Python, or any custom
  command) as persistent background processes, and interact with them seamlessly
  from your editor or terminal.
-
+It's true it may not be of great use for viewing your makie plots
+in you ide or terminal, but if you forgot if it was `max` or 
+`maximum`, then sure a quick trial via a persistent repl from your editor
+could help.
 
 ## Table of Contents
 
@@ -17,9 +20,10 @@ client designed to streamline your interactive programming workflow.
 
 ## Features
 
+- **LightWeight**: Julia is known for it's slow startup time, but the rrr server
+  is light enough to start in a few seconds.
 - **Unified REPL Management:** Run and control multiple Julia, Python, or custom REPL sessions from a single interface.
 - **Persistent Sessions:** REPLs run in the background, maintaining their state across commands.
-- **Editor Integration:** Send code directly from your editor (e.g., Helix) to a specific REPL session.
 - **Efficient Communication:** Utilizes Unix Domain Sockets for high-performance inter-process communication.
 - **Simple Client:** A lightweight Fish shell script (`rrr`) provides all necessary commands.
 
@@ -28,9 +32,8 @@ client designed to streamline your interactive programming workflow.
 RRR.jl operates on a client-server architecture:
 
 1.  **RRR Server (Julia):** A Julia server process (`RRR.jl`) runs in the background, listening on a Unix Domain Socket (usually `/tmp/rrr.sock`). This server manages a collection of child REPL processes (Julia, Python, etc.).
-2.  **REPL Processes:** When you create a session (e.g., a Python REPL), the server launches it as a subprocess. Communication with these child REPLs uses a robust *sentinel-based protocol* to reliably send commands and capture their full output (including multi-line results and error tracebacks).
+2.  **REPL Processes:** When you create a session (e.g., a Python REPL), the server launches it as a subprocess. Communication with these child REPLs uses a not-so-robust *sentinel-based protocol* to reliably send commands and capture their full output (including multi-line results and error tracebacks).
 3.  **RRR Client (Fish):** The `rrr` Fish shell script acts as your interface. It connects to the RRR server via the Unix socket, sends your commands (e.g., create a session, run code, kill a session), and displays the server's responses.
-4.  **No Port Conflicts:** By using Unix Domain Sockets, RRR.jl avoids issues with finding available TCP ports.
 
 ## Installation
 
@@ -40,7 +43,7 @@ Before installing RRR.jl, ensure you have the following installed:
 
 -   **Julia:** The Julia programming language (version 1.6 or newer recommended).
 -   **Fish Shell:** The friendly interactive shell.
--   **`netcat` (nc):** A networking utility, commonly used for socket communication.
+-   **`netcat` (nc):** A networking utility, used for socket communication.
 -   **`uuidgen`:** A utility for generating UUIDs (usually part of `util-linux` on Linux).
 
 ### Steps
@@ -77,7 +80,7 @@ rrr --help
     ```
 -   **Shut down the RRR server and all active REPL sessions:**
     ```bash
-    rrr quit
+    rrr stop
     ```
 
 ### Session Management
@@ -92,11 +95,14 @@ rrr --help
     ```
 -   **Adding arguments to the command:**
     ```bash
-    rrr +jl 3 -- --thread=auto
+    rrr +jl 3 --project --thread=auto
     ```
 -   **Create a custom REPL session (e.g., Fish shell) with ID `3`:**
+    > [!WARNING]
+    > Dont do this! working with a repl requires an integration script,
+    > and if it does not work, it would just make the server hang.
     ```bash
-    rrr +none 3 -- fish
+    rrr +none 3 fish
     ```
 -   **Terminate a specific REPL session (e.g., session `1`):**
     ```bash
