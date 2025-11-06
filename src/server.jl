@@ -76,6 +76,12 @@ function run(s::Server, sock::String)
             println("Exciting gracefully")
         else
             rethrow()
+
+        end
+    finally
+        try
+            rm(sock)
+        catch
         end
     end
 end

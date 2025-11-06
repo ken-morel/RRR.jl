@@ -1,1 +1,175 @@
 #!/usr/bin/fish
+
+set -l SOCKET_PATH "/tmp/rrr.sock"
+
+# --- HELP FUNCTION ---
+function __rrr_help
+    echo "Usage: rrr <command> [arguments...]"
+    echo ""
+    echo "A client for the Remote REPL Runner server."
+    echo ""
+    echo "Management Commands:"
+    echo "  start                            Start the RRR server in the background."
+    echo "  quit                             Shut down the RRR server and all sessions."
+    echo "  kill <name>                      Terminate a specific REPL session."
+    echo ""
+    echo "Session Commands:"
+    echo "  +<template> <name> [-- <args>]   Create a new REPL session (starts server if needed)."
+    echo "    - template: The name of a session template (e.g., 'jl', 'py')."
+    echo "    - name: A unique name for this session."
+    echo "    - args: Optional arguments to customize the REPL command."
+    echo "    - Use '+none' as the template to pass a raw command with '--'."
+    echo "      Example: rrr +none myshell -- fish"
+    echo ""
+    echo "  <name> \"<code>\"                  Run code in a session."
+    echo "  <name> (with piped input)        Run piped code in a session."
+    echo "    Example: echo '1+1' | rrr myjuliashell"
+    echo ""
+    echo "  -h, --help                       Show this help message."
+end
+
+# --- SERVER UTILITY FUNCTIONS ---
+function __rrr_is_server_running
+    # Check if we can connect to the socket. -w 1 sets a 1-second timeout.
+    # return noe nc -U -w 1 $SOCKET_PATH </dev/null >/dev/null 2>&1
+    if nc -U -w 1 "/tmp/rrr.sock" </dev/null >/dev/null 2>&1
+        return 0
+    else
+        return 1
+    end
+end
+
+function __rrr_start_server
+    echo "Starting RRR server..."
+    # Use nohup to detach the process from the terminal.
+    # Redirect stdout and stderr to /dev/null to prevent nohup.out file creation.
+    # The '&' still backgrounds it.
+    julia --project=@rrr -e "using Pkg;Pkg.instantiate()"
+    nohup julia --project=@rrr -m RRR &
+
+    # Give the server a moment to start up and create the socket.
+    sleep 2
+    if not __rrr_is_server_running
+        echo "Error: Server failed to start." >&2
+        return 1
+    end
+    return 0
+end
+
+# --- MAIN LOGIC ---
+function rrr
+    # Check for dependencies
+    if not command -v nc >/dev/null
+        echo "Error: 'netcat' (nc) is required but not found." >&2
+        return 1
+    end
+    if not command -v uuidgen >/dev/null
+        echo "Error: 'uuidgen' is required but not found." >&2
+        return 1
+    end
+
+    # No arguments or help request
+    if test (count $argv) -eq 0; or test "$argv[1]" = -h; or test "$argv[1]" = --help
+        __rrr_help
+        return 0
+    end
+
+    set -l command $argv[1]
+
+    # --- START the server ---
+    if test "$command" = start
+        if __rrr_is_server_running
+            echo "Server is already running."
+        else
+            __rrr_start_server
+        end
+        return $status
+    end
+
+    # --- CREATE a new session (with auto-start) ---
+    if string match -q -- "+*" "$command"
+        if not __rrr_is_server_running
+            if not __rrr_start_server
+                return 1 # Exit if server fails to start
+            end
+        end
+
+        if test (count $argv) -lt 2
+            echo "Error: Missing a <name> for the new session." >&2
+            __rrr_help
+            return 1
+        end
+
+        set -l template (string sub -s 2 "$command")
+        set -l name $argv[2]
+        set -l args ""
+
+        set -l dash_index (contains -i -- "--" $argv)
+        if test $status -eq 0
+            set args (string join " " -- $argv[(math $dash_index + 1)..end])
+        end
+
+        begin
+            echo create
+            echo "$name"
+            echo "$template"
+            echo "$args"
+        end | nc -U "$SOCKET_PATH"
+        return $status
+    end
+
+    # --- QUIT the server ---
+    if test "$command" = quit
+        echo quit | nc -U "$SOCKET_PATH"
+        return $status
+    end
+
+    # --- KILL a session ---
+    if test "$command" = kill
+        if test (count $argv) -lt 2
+            echo "Error: Missing the <name> of the session to kill." >&2
+            __rrr_help
+            return 1
+        end
+        set -l name $argv[2]
+        begin
+            echo kill
+            echo "$name"
+        end | nc -U "$SOCKET_PATH"
+        return $status
+    end
+
+    # --- RUN code in a session (default behavior) ---
+    set -l name "$command"
+    set -l code ""
+
+    if test (count $argv) -gt 1
+        set code $argv[2]
+    else if not isatty stdin
+        set code (cat)
+    else
+        echo "Error: No code provided to run in session '$name'." >&2
+        echo "Provide code as an argument or pipe it via stdin." >&2
+        __rrr_help
+        return 1
+    end
+
+    set -l separator (uuidgen)
+
+    begin
+        echo run
+        echo "$name"
+        echo "$separator"
+        echo "$code"
+        echo "$separator"
+    end | nc -U "$SOCKET_PATH" | while read -l line
+        if test "$line" = "$separator"
+            break
+        end
+        echo "$line"
+    end
+    return $status
+end
+
+# Execute the main function with all provided arguments
+rrr $argv
