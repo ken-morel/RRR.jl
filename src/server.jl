@@ -5,23 +5,33 @@ function server()
     Server()
 end
 function run(s::Server, sock::String)
+    println("Starting server")
     server = listen(sock)
+    println("Listening to connections")
     try
         while true
             conn = accept(server)
-            query = readline(conn)
-            try
+            @time try
+                println("Connection received")
+                query = readline(conn)
+                @show query
                 if query == "create"
                     println("Creating REPL")
                     name = Symbol(readline(conn))
                     template = Symbol(readline(conn))
                     args = Base.shell_split(readline(conn))
                     @show name template args
+                    if haskey(s.repls, name)
+                        println(conn, "ERRROR: Instance $name already exists")
+                        println("  Already exists")
+                        continue
+                    end
                     command = if template == :none
                         Cmd(args)
                     else
                         TEMPLATES[template](args)
                     end
+
                     s.repls[name] = repl(command)
                     println("  Repl created")
                     println(conn, "ok")
@@ -30,6 +40,10 @@ function run(s::Server, sock::String)
                     name = Symbol(readline(conn))
                     seperator = readline(conn)
                     @show name seperator
+                    if !haskey(s.repls, name)
+                        println(conn, "ERRRROR: Instance $name does not exist")
+                        continue
+                    end
 
                     code = IOBuffer()
                     while true
@@ -44,21 +58,25 @@ function run(s::Server, sock::String)
                 elseif query == "kill"
                     println("Killing repl")
                     name = Symbol(readline(conn))
-                    kill(pop!(s.repls, name))
+                    @show name
+                    if haskey(s.repls, name)
+                        kill(pop!(s.repls, name))
+                        println(conn, "Instance killed succesfuly")
+                    else
+                        println(conn, "Instance does not exist")
+                    end
                 elseif query == "quit"
+                    println("Quiting")
                     try
                         for (_, repl) in s.repls
                             kill(repl)
                         end
-                        close(conn)
-                        close(server)
-                    catch
                     finally
                         return
                     end
                 end
             catch e
-                println("ERROR: ", e)
+                println("ERRROR: ", e)
                 try
                     Base.showerror(conn, e, Base.catch_backtrace())
                 catch
@@ -82,6 +100,8 @@ function run(s::Server, sock::String)
         try
             rm(sock)
         catch
+        finally
+            println("Bye")
         end
     end
 end

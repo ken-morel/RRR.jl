@@ -1,6 +1,6 @@
 #!/usr/bin/fish
 
-set -l SOCKET_PATH "/tmp/rrr.sock"
+set -g SOCKET_PATH "/tmp/rrr.sock"
 
 # --- HELP FUNCTION ---
 function __rrr_help
@@ -31,8 +31,7 @@ end
 # --- SERVER UTILITY FUNCTIONS ---
 function __rrr_is_server_running
     # Check if we can connect to the socket. -w 1 sets a 1-second timeout.
-    # return noe nc -U -w 1 $SOCKET_PATH </dev/null >/dev/null 2>&1
-    if nc -U -w 1 "/tmp/rrr.sock" </dev/null >/dev/null 2>&1
+    if nc -U -w 1 "$SOCKET_PATH" </dev/null >/dev/null 2>&1
         return 0
     else
         return 1
@@ -44,11 +43,10 @@ function __rrr_start_server
     # Use nohup to detach the process from the terminal.
     # Redirect stdout and stderr to /dev/null to prevent nohup.out file creation.
     # The '&' still backgrounds it.
-    julia --project=@rrr -e "using Pkg;Pkg.instantiate()"
-    nohup julia --project=@rrr -m RRR &
+    nohup julia --project=@rrr -m RRR >/tmp/rrr.log 2>&1 &
 
     # Give the server a moment to start up and create the socket.
-    sleep 2
+    sleep 1
     if not __rrr_is_server_running
         echo "Error: Server failed to start." >&2
         return 1
@@ -84,6 +82,26 @@ function rrr
             __rrr_start_server
         end
         return $status
+    end
+
+    # --- INSTALL rrr script ---
+    if test "$command" = install
+        echo "Installing rrr..."
+        set -l target_dir "$HOME/.local/bin"
+        set -l script_path (realpath (status --current-filename))
+
+        if not test -d "$target_dir"
+            mkdir -p "$target_dir"
+        end
+
+        ln -sf "$script_path" "$target_dir/rrr"
+        echo "Created symlink at $target_dir/rrr"
+
+        echo "Setting up Julia environment..."
+        julia --project=@rrr -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
+
+        echo "Installation complete. Make sure '$target_dir' is in your PATH."
+        return 0
     end
 
     # --- CREATE a new session (with auto-start) ---
