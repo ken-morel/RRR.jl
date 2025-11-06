@@ -18,14 +18,10 @@ while !eof(stdin)
     end
 
 
-    code_string = String(take!(code_to_run))[begin:(end-1)]
+    code_string = String(take!(code_to_run))
 
     try
-        expr = Meta.parse(code_string)
-        result = Core.eval(session_module, expr)
-        if !isnothing(result)
-            show(stdout, "text/plain", result)
-        end
+        show(stdout, "text/plain", include_string(session_module, code_string))
     catch e
         Base.showerror(stdout, e, Base.catch_backtrace())
     finally

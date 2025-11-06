@@ -46,7 +46,7 @@ function __rrr_start_server
     nohup julia --project=@rrr -m RRR >/tmp/rrr.log 2>&1 &
 
     # Give the server a moment to start up and create the socket.
-    sleep 1
+    sleep 2
     if not __rrr_is_server_running
         echo "Error: Server failed to start." >&2
         return 1
@@ -164,7 +164,7 @@ function rrr
     if test (count $argv) -gt 1
         set code $argv[2]
     else if not isatty stdin
-        set code (cat)
+        read -z code
     else
         echo "Error: No code provided to run in session '$name'." >&2
         echo "Provide code as an argument or pipe it via stdin." >&2

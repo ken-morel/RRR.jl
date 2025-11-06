@@ -27,7 +27,7 @@ function evaluate(r::Repl, conn)
         strip(line) == sentinel && break
         println(code_buffer, line)
     end
-    code_to_run = String(take!(code_buffer))[begin:(end-1)]
+    code_to_run = String(take!(code_buffer))
 
     # Send the code to the REPL process
     println(r.process, sentinel)
@@ -37,8 +37,8 @@ function evaluate(r::Repl, conn)
 
     # Asynchronously wait for the response with a timeout
     done = Threads.Condition()
-    val = Ref{Any}(nothing)
-    err = Ref{Any}(nothing)
+    val = Ref{Union{String,Nothing}}(nothing)
+    err = Ref{Union{Exception,Nothing}}(nothing)
 
     @async begin
         try
@@ -47,7 +47,7 @@ function evaluate(r::Repl, conn)
                 text = readline(r.process)
                 if strip(text) == sentinel
                     @lock done begin
-                        val[] = String(take!(response_buffer))[begin:(end-1)]
+                        val[] = String(take!(response_buffer))
                         notify(done)
                     end
                     return
@@ -76,7 +76,7 @@ function evaluate(r::Repl, conn)
     if !isnothing(err[])
         Base.showerror(conn, err[])
     else
-        println(conn, val[])
+        println(conn, rstrip(val[], '\n'))
     end
     println(conn, sentinel) # Final sentinel to client
 end
