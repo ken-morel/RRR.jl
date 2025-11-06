@@ -5,103 +5,88 @@ function server()
     Server()
 end
 function run(s::Server, sock::String)
-    println("Starting server")
+    # Ensure the socket is cleaned up on exit
+    atexit(() -> isfile(sock) && rm(sock))
+    isfile(sock) && rm(sock)
+
     server = listen(sock)
-    println("Listening to connections")
+    println("RRR.jl server listening at '$sock'")
     try
         while true
             conn = accept(server)
-            @time try
-                println("Connection received")
-                query = readline(conn)
-                @show query
-                if query == "create"
-                    println("Creating REPL")
-                    name = Symbol(readline(conn))
-                    template = Symbol(readline(conn))
-                    args = Base.shell_split(readline(conn))
-                    @show name template args
-                    if haskey(s.repls, name)
-                        println(conn, "ERRROR: Instance $name already exists")
-                        println("  Already exists")
-                        continue
-                    end
-                    command = if template == :none
-                        Cmd(args)
-                    else
-                        TEMPLATES[template](args)
-                    end
+            @async begin # Handle each connection asynchronously
+                try
+                    query = readline(conn)
+                    if query == "create"
+                        println("Received: create")
+                        name = Symbol(readline(conn))
+                        template = Symbol(readline(conn))
+                        args = Base.shell_split(readline(conn))
 
-                    s.repls[name] = repl(command)
-                    println("  Repl created")
-                    println(conn, "ok")
-                elseif query == "run"
-                    println("Running code in repl")
-                    name = Symbol(readline(conn))
-                    seperator = readline(conn)
-                    @show name seperator
-                    if !haskey(s.repls, name)
-                        println(conn, "ERRRROR: Instance $name does not exist")
-                        continue
-                    end
-
-                    code = IOBuffer()
-                    while true
-                        ln = readline(conn)
-                        strip(ln) == seperator&&break
-                        println(code, ln)
-                    end
-                    response = evaluate(s.repls[name], String(take!(code)))
-                    println("Evaluated command")
-                    println(conn, response)
-                    println(conn, seperator)
-                elseif query == "kill"
-                    println("Killing repl")
-                    name = Symbol(readline(conn))
-                    @show name
-                    if haskey(s.repls, name)
-                        kill(pop!(s.repls, name))
-                        println(conn, "Instance killed succesfuly")
-                    else
-                        println(conn, "Instance does not exist")
-                    end
-                elseif query == "quit"
-                    println("Quiting")
-                    try
-                        for (_, repl) in s.repls
-                            kill(repl)
+                        if haskey(s.repls, name)
+                            println(conn, "ERROR: Instance '$name' already exists.")
+                        else
+                            command =
+                                template == :none ? Cmd(args) : TEMPLATES[template](args)
+                            s.repls[name] = repl(command)
+                            println("  Repl '$name' created.")
+                            println(conn, "ok")
                         end
-                    finally
+
+                    elseif query == "run"
+                        println("Received: run")
+                        name = Symbol(readline(conn))
+                        if haskey(s.repls, name)
+                            # The evaluate function now handles reading the rest of the request from the connection
+                            evaluate(s.repls[name], conn)
+                            println("  Command evaluated in '$name'.")
+                        else
+                            println(conn, "ERROR: Instance '$name' does not exist.")
+                        end
+
+                    elseif query == "kill"
+                        println("Received: kill")
+                        name = Symbol(readline(conn))
+                        if haskey(s.repls, name)
+                            kill(pop!(s.repls, name))
+                            println(conn, "Instance '$name' killed successfully.")
+                            println("  Repl '$name' killed.")
+                        else
+                            println(conn, "ERROR: Instance '$name' does not exist.")
+                        end
+
+                    elseif query == "quit"
+                        println("Received: quit")
+                        for (name, repl) in s.repls
+                            kill(repl)
+                            println("  Repl '$name' killed.")
+                        end
+                        close(server)
+                        println("Server shut down.")
+                        # This will break the `while true` loop and exit
                         return
+
+                    end
+                catch e
+                    println("ERROR: ", sprint(showerror, e))
+                    try
+                        Base.showerror(conn, e, Base.catch_backtrace())
+                    catch
+                    end
+                finally
+                    try
+                        flush(conn)
+                        close(conn)
+                    catch
                     end
                 end
-            catch e
-                println("ERRROR: ", e)
-                try
-                    Base.showerror(conn, e, Base.catch_backtrace())
-                catch
-                end
-            finally
-                try
-                    flush(conn)
-                    close(conn)
-                catch
-                end
-            end
+            end # end @async
         end
     catch e
-        if e isa InterruptException
-            println("Exciting gracefully")
-        else
+        if !(e isa InterruptException || e isa Base.IOError)
             rethrow()
-
         end
     finally
-        try
-            rm(sock)
-        catch
-        finally
-            println("Bye")
-        end
+        println("\nServer exited.")
     end
 end

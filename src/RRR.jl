@@ -1,6 +1,7 @@
 module RRR
 using Sockets
 
+include("./scripts.jl")
 include("./repl.jl")
 include("./server.jl")
 

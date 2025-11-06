@@ -9,7 +9,7 @@ while !eof(stdin)
 
     code_to_run = IOBuffer()
     while !eof(stdin)
-        line = readline(stdin)
+        line = readline()
         if strip(line) == sentinel
             break
         else
@@ -17,7 +17,8 @@ while !eof(stdin)
         end
     end
 
-    code_string = String(take!(code_to_run))
+
+    code_string = String(take!(code_to_run))[begin:(end-1)]
 
     try
         expr = Meta.parse(code_string)
