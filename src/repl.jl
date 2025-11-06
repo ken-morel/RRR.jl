@@ -8,8 +8,14 @@ function repl(cmd::Cmd)
     Repl(proc)
 end
 function kill(r::Repl)
-    println(r.process, "kill")
-    readline(r.process)
+    @async begin
+        try
+            println(r.process, "kill")
+            sleep(2)
+            Base.kill(r.process)
+        catch
+        end
+    end
 end
 
 function evaluate(r::Repl, conn)

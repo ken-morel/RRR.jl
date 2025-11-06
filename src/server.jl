@@ -49,8 +49,9 @@ function run(s::Server, sock::String)
                         name = Symbol(readline(conn))
                         if haskey(s.repls, name)
                             kill(pop!(s.repls, name))
-                            println(conn, "Instance '$name' killed successfully.")
-                            println("  Repl '$name' killed.")
+                            sleep(2)
+                            println(conn, "Kill signal sent to '$name'.")
+                            println("  Repl '$name' sent kill signal.")
                         else
                             println(conn, "ERROR: Instance '$name' does not exist.")
                         end
@@ -59,8 +60,9 @@ function run(s::Server, sock::String)
                         println("Received: quit")
                         for (name, repl) in s.repls
                             kill(repl)
-                            println("  Repl '$name' killed.")
+                            println("  Repl '$name' received kill signal.")
                         end
+                        sleep(2)
                         close(server)
                         println("Server shut down.")
                         # This will break the `while true` loop and exit
