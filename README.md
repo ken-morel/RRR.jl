@@ -6,6 +6,7 @@ client designed to streamline your interactive programming workflow.
  command) as persistent background processes, and interact with them seamlessly
  from your editor or terminal.
 
+
 ## Table of Contents
 
 - [Features](#features)
@@ -89,6 +90,10 @@ rrr --help
     ```bash
     rrr +py 2
     ```
+-   **Adding arguments to the command:**
+    ```bash
+    rrr +jl 3 -- --thread=auto
+    ```
 -   **Create a custom REPL session (e.g., Fish shell) with ID `3`:**
     ```bash
     rrr +none 3 -- fish
@@ -97,6 +102,7 @@ rrr --help
     ```bash
     rrr kill 1
     ```
+
 
 ### Running Code in Sessions
 
@@ -167,3 +173,9 @@ Now you can manage your REPLs and send code directly from your editor!
 To start a session, in normal mode: `space>space>j/p/k>num` and to
 run, select text then press `space>space` and the id of the instance
 you want to run it in.
+
+You can also pass code into a custom session(which does not have a 1-5 id)
+by using helix's builtin pipe, which is exactly what rrr does,
+simply select some text, hit `|` then `rrr <id>`, and helix will pipe
+the selection to rrr instance `<id>` and replace with the command's output.
+
